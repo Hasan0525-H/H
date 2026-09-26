@@ -692,6 +692,8 @@ fun HAgentApp(
                     remoteState = state.autoRemoteState,
                     remoteStage = state.autoRemoteStage,
                     runtimeNow = runtimeNow,
+                    selectedRepoName = selectedRepo?.fullName.orEmpty(),
+                    onOpenProjects = { panel = ToolPanel.PROJECTS },
                     onTogglePause = vm::toggleAutoPause,
                     onOpenTasks = {
                         openAutomationSettings = true
@@ -868,6 +870,8 @@ private fun ChatCanvas(
     remoteState: String,
     remoteStage: String,
     runtimeNow: Long,
+    selectedRepoName: String,
+    onOpenProjects: () -> Unit,
     onTogglePause: () -> Unit,
     onOpenTasks: () -> Unit
 ) {
@@ -908,7 +912,14 @@ private fun ChatCanvas(
             .statusBarsPadding()
             .padding(horizontal = 14.dp)
     ) {
-        Spacer(Modifier.height(8.dp))
+        UnifiedWorkspaceHeader(
+            repository = selectedRepoName,
+            running = running,
+            programming = programming,
+            onProjects = onOpenProjects
+        )
+
+        Spacer(Modifier.height(10.dp))
 
         if (autoQueueStarted || autoWorkerError.isNotBlank()) {
             CompositionLocalProvider(
@@ -961,7 +972,7 @@ private fun ChatCanvas(
                     top = 18.dp,
                     bottom = 10.dp
                 ),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 items(history) { turn ->
                     MessageBlock(turn)
@@ -993,43 +1004,108 @@ private fun ChatCanvas(
     }
 }
 @Composable
+private fun UnifiedWorkspaceHeader(
+    repository: String,
+    running: Boolean,
+    programming: Boolean,
+    onProjects: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(40.dp),
+            color = Ink,
+            shape = RoundedCornerShape(13.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text("H", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+            }
+        }
+
+        Spacer(Modifier.width(10.dp))
+
+        Column(Modifier.weight(1f)) {
+            Text("HAI", color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(
+                when {
+                    running && programming -> "ينفذ على المشروع الآن"
+                    running -> "يفكر الآن"
+                    repository.isNotBlank() -> repository.substringAfter("/")
+                    else -> "مساحة عمل موحدة"
+                },
+                color = if (running) Blue else Muted,
+                fontSize = 11.sp
+            )
+        }
+
+        Surface(
+            modifier = Modifier.clickable(onClick = onProjects),
+            color = if (repository.isBlank()) BlueSoft else Color.White,
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, Line)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Outlined.FolderOpen,
+                    contentDescription = null,
+                    tint = Blue,
+                    modifier = Modifier.size(17.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (repository.isBlank()) "اختر مشروع" else repository.substringAfter("/"),
+                    color = Ink,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 26.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 12.dp),
+        horizontalAlignment = Alignment.Start
     ) {
-        Surface(
-            modifier = Modifier.size(58.dp),
-            color = Color.White,
-            shape = RoundedCornerShape(20.dp),
-            border = BorderStroke(1.dp, Line),
-            shadowElevation = 8.dp
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text(
-                    "H",
-                    color = Blue,
-                    fontSize = 27.sp,
-                    fontWeight = FontWeight.Black
-                )
-            }
-        }
-
-        Spacer(Modifier.height(18.dp))
-
         Text(
-            "وش تبغى تنفذ؟",
+            "ابدأ من هنا.",
             color = Ink,
-            fontSize = 23.sp,
+            fontSize = 34.sp,
+            fontWeight = FontWeight.Black
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "تكلم معه بشكل طبيعي. وإذا كان طلبك برمجيًا، يتحول HAI للتنفيذ داخل نفس المحادثة.",
+            color = Muted,
+            fontSize = 14.sp,
+            lineHeight = 22.sp
+        )
+        Spacer(Modifier.height(26.dp))
+        HorizontalDivider(color = Line)
+        Spacer(Modifier.height(18.dp))
+        Text(
+            "مثال",
+            color = Muted,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
         Spacer(Modifier.height(7.dp))
         Text(
-            "دردشة وبرمجة وتنفيذ في نفس المساحة",
-            color = Muted,
-            fontSize = 13.sp
+            "«افتح المشروع، أصلح المشكلة، شغّل الاختبارات وارفع التعديل.»",
+            color = Ink,
+            fontSize = 14.sp,
+            lineHeight = 21.sp
         )
     }
 }
@@ -1472,9 +1548,9 @@ private fun CompactComposer(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 14.dp, vertical = 10.dp),
         color = Color.White,
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, Line),
         shadowElevation = 8.dp
     ) {
@@ -1558,7 +1634,7 @@ private fun CompactComposer(
                         Box {
                             if (value.isBlank()) {
                                 Text(
-                                    "اكتب طلبك…",
+                                    "اطلب أي شيء — دردشة أو تنفيذ برمجي",
                                     color = Muted,
                                     fontSize = 14.sp
                                 )
@@ -1714,7 +1790,7 @@ private fun AnimatedToolDock(
             Surface(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .size(38.dp)
+                    .size(34.dp)
                     .clickable(onClick = onToggle),
                 color = SurfaceElevated,
                 shape = CircleShape,
