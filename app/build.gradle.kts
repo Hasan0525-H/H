@@ -10,14 +10,11 @@ val signingStorePassword = providers.environmentVariable("ANDROID_KEYSTORE_PASSW
 val signingKeyAlias = providers.environmentVariable("ANDROID_KEY_ALIAS").orNull
 val signingKeyPassword = providers.environmentVariable("ANDROID_KEY_PASSWORD").orNull
 
-val defaultGitHubOAuthClientId = "Ov23litmhwBMkI6Uh6IW"
-
 val githubOAuthClientId = providers.environmentVariable("GITHUB_OAUTH_CLIENT_ID")
     .orElse(providers.gradleProperty("GITHUB_OAUTH_CLIENT_ID"))
     .orNull
     ?.trim()
     .takeUnless { it.isNullOrBlank() }
-    ?: defaultGitHubOAuthClientId
 
 val cloudflareImageProxyUrl = providers.environmentVariable("CLOUDFLARE_IMAGE_PROXY_URL")
     .orElse(providers.gradleProperty("CLOUDFLARE_IMAGE_PROXY_URL"))
@@ -48,8 +45,8 @@ android {
         applicationId = "com.haiom.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 73
-        versionName = "0.12.1"
+        versionCode = 74
+        versionName = "1.0.0"
 
         buildConfigField(
             "String",
