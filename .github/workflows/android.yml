@@ -61,7 +61,7 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Deploy H AGENT image worker
+      - name: Deploy HAI image worker
         id: deploy-image-worker
         if: steps.cloudflare-config.outputs.enabled == 'true'
         shell: bash
@@ -325,7 +325,7 @@ jobs:
               -keyalg RSA \
               -keysize 3072 \
               -validity 10000 \
-              -dname "CN=H AGENT,O=H AGENT,C=SA"
+              -dname "CN=HAI,O=HAI,C=SA"
             {
               echo "storePassword=$PASS"
               echo "keyPassword=$PASS"
@@ -333,7 +333,7 @@ jobs:
             } > signing.properties
             gh release create hai-om-signing \
               --draft \
-              --title "H AGENT signing material" \
+              --title "HAI signing material" \
               --notes "Private CI signing material. Legacy tag retained for update compatibility." \
               hai-om-release.jks signing.properties
           fi
@@ -348,13 +348,13 @@ jobs:
           export ANDROID_KEY_ALIAS="$keyAlias"
           export ANDROID_KEY_PASSWORD="$keyPassword"
           gradle --no-daemon assembleRelease
-          cp app/build/outputs/apk/release/app-release.apk H-AGENT.apk
+          cp app/build/outputs/apk/release/app-release.apk H.apk
 
       - name: Upload signed APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: H-AGENT-signed-release-apk
-          path: H-AGENT.apk
+          name: H-signed-release-apk
+          path: H.apk
           if-no-files-found: error
 
       - name: Publish app release
@@ -364,18 +364,18 @@ jobs:
           VERSION="$(grep 'versionName = "' app/build.gradle.kts | head -1 | sed -E 's/.*versionName = "([^"]+)".*/\1/')"
           TAG="v$VERSION"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" H-AGENT.apk --clobber
-            gh release edit "$TAG" --title "H AGENT $TAG" --latest
+            gh release upload "$TAG" H.apk --clobber
+            gh release edit "$TAG" --title "HAI $TAG" --latest
           else
-            gh release create "$TAG" H-AGENT.apk \
-              --title "H AGENT $TAG" \
-              --notes "H AGENT release $TAG" \
+            gh release create "$TAG" H.apk \
+              --title "HAI $TAG" \
+              --notes "HAI release $TAG" \
               --latest
           fi
 
 
   cleanup-legacy-branches:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'H AGENT 0.11.0')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'HAI 0.11.0')
     needs: build
     runs-on: ubuntu-latest
     permissions:
