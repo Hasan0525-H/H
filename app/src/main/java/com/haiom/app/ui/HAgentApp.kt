@@ -142,16 +142,16 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
 
-private val Canvas = Color(0xFFF8FBFF)
+private val Canvas = Color(0xFFF7F8FA)
 private val SurfaceSoft = Color(0xFFFFFFFF)
-private val Lavender = Color(0xFFF2F1FF)
-private val LavenderStrong = Color(0xFFE9E7FF)
+private val Lavender = Color(0xFFF1F3F5)
+private val LavenderStrong = Color(0xFFE7EAEE)
 private val Line = Color(0xFFE4EAF2)
-private val Blue = Color(0xFF4F6BFF)
-private val BlueSoft = Color(0xFFEEF2FF)
-private val Ink = Color(0xFF172033)
-private val Muted = Color(0xFF8A94A6)
-private val Violet = Color(0xFF8C7CFF)
+private val Blue = Color(0xFF111827)
+private val BlueSoft = Color(0xFFF0F2F4)
+private val Ink = Color(0xFF101214)
+private val Muted = Color(0xFF69717C)
+private val Violet = Color(0xFF3F4854)
 private val SurfaceElevated = Color(0xFFFFFFFF)
 private val Signal = Color(0xFFFFB6A3)
 private val Moss = Color(0xFF62C6A5)
@@ -1037,7 +1037,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         Spacer(Modifier.height(16.dp))
 
         Text(
-            "H AGENT",
+            "HAI",
             color = Ink,
             fontSize = 26.sp,
             fontWeight = FontWeight.Black
@@ -1136,7 +1136,7 @@ private fun copyCode(context: Context, code: String) {
     ) as ClipboardManager
 
     clipboard.setPrimaryClip(
-        ClipData.newPlainText("H AGENT code", code)
+        ClipData.newPlainText("HAI code", code)
     )
 
     Toast.makeText(
@@ -1189,7 +1189,7 @@ private fun MessageBlock(turn: ChatTurn) {
                         LocalLayoutDirection provides LayoutDirection.Rtl
                     ) {
                         Text(
-                            "H AGENT",
+                            "HAI",
                             modifier = Modifier.fillMaxWidth(),
                             color = Blue,
                             fontSize = 11.sp,
@@ -1202,7 +1202,7 @@ private fun MessageBlock(turn: ChatTurn) {
 
                     SubcomposeAsyncImage(
                         model = generatedImageModel,
-                        contentDescription = "صورة مولدة بواسطة H AGENT",
+                        contentDescription = "صورة مولدة بواسطة HAI",
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(320.dp)
@@ -1299,7 +1299,7 @@ private fun MessageBlock(turn: ChatTurn) {
                         LocalLayoutDirection provides LayoutDirection.Rtl
                     ) {
                         Text(
-                            if (user) "أنت" else "H AGENT",
+                            if (user) "أنت" else "HAI",
                             modifier = Modifier.fillMaxWidth(),
                             color = if (user) Color(0xFFB66A55) else Blue,
                             fontSize = 11.sp,
@@ -1999,7 +1999,7 @@ private fun ToolHeader(title: String, onBack: () -> Unit) {
                 fontWeight = FontWeight.Black
             )
             Text(
-                "مساحة H AGENT",
+                "مساحة HAI",
                 color = Muted,
                 fontSize = 10.sp
             )
@@ -2441,7 +2441,7 @@ private fun SettingsRootContent(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "كل إعدادات H AGENT في مكان واحد",
+                    "كل إعدادات HAI في مكان واحد",
                     color = Muted,
                     fontSize = 11.sp
                 )
