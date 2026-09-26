@@ -14,7 +14,7 @@ val githubOAuthClientId = providers.environmentVariable("GITHUB_OAUTH_CLIENT_ID"
     .orElse(providers.gradleProperty("GITHUB_OAUTH_CLIENT_ID"))
     .orNull
     ?.trim()
-    .takeUnless { it.isNullOrBlank() }
+    .orEmpty()
 
 val cloudflareImageProxyUrl = providers.environmentVariable("CLOUDFLARE_IMAGE_PROXY_URL")
     .orElse(providers.gradleProperty("CLOUDFLARE_IMAGE_PROXY_URL"))
