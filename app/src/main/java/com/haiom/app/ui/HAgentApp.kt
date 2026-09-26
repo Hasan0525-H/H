@@ -142,22 +142,22 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
 
-private val Canvas = Color(0xFFF7F8FA)
+private val Canvas = Color(0xFFF8FAFD)
 private val SurfaceSoft = Color(0xFFFFFFFF)
-private val Lavender = Color(0xFFF1F3F5)
-private val LavenderStrong = Color(0xFFE7EAEE)
-private val Line = Color(0xFFE4EAF2)
-private val Blue = Color(0xFF111827)
-private val BlueSoft = Color(0xFFF0F2F4)
-private val Ink = Color(0xFF101214)
-private val Muted = Color(0xFF69717C)
-private val Violet = Color(0xFF3F4854)
+private val Lavender = Color(0xFFF3F6FB)
+private val LavenderStrong = Color(0xFFE8EEF7)
+private val Line = Color(0xFFDDE5F0)
+private val Blue = Color(0xFF1769E0)
+private val BlueSoft = Color(0xFFEAF2FF)
+private val Ink = Color(0xFF152033)
+private val Muted = Color(0xFF718096)
+private val Violet = Color(0xFF6C5CE7)
 private val SurfaceElevated = Color(0xFFFFFFFF)
-private val Signal = Color(0xFFFFB6A3)
-private val Moss = Color(0xFF62C6A5)
-private val Sky = Color(0xFFDDF7FF)
-private val Peach = Color(0xFFFFEEE9)
-private val PaperShadow = Color(0x120D2744)
+private val Signal = Color(0xFFFFE8E2)
+private val Moss = Color(0xFF45B89C)
+private val Sky = Color(0xFFE8F4FF)
+private val Peach = Color(0xFFF2F6FF)
+private val PaperShadow = Color(0x100D2744)
 
 private enum class ToolPanel { PROJECTS, HISTORY, MODELS, SETTINGS }
 private enum class SettingsPage { ROOT, GITHUB, AUTOMATION }
@@ -995,62 +995,44 @@ private fun ChatCanvas(
 @Composable
 private fun EmptyState(modifier: Modifier = Modifier) {
     Column(
-        modifier = modifier.padding(horizontal = 30.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 26.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier.size(116.dp),
-            contentAlignment = Alignment.Center
+        Surface(
+            modifier = Modifier.size(58.dp),
+            color = Color.White,
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, Line),
+            shadowElevation = 8.dp
         ) {
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .size(46.dp),
-                color = Sky,
-                shape = CircleShape
-            ) {}
-            Surface(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .size(38.dp),
-                color = Peach,
-                shape = CircleShape
-            ) {}
-            Surface(
-                modifier = Modifier.size(82.dp),
-                color = SurfaceElevated,
-                shape = RoundedCornerShape(30.dp),
-                border = BorderStroke(1.dp, Line),
-                shadowElevation = 12.dp
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Outlined.AutoAwesome,
-                        contentDescription = null,
-                        tint = Blue,
-                        modifier = Modifier.size(34.dp)
-                    )
-                }
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    "H",
+                    color = Blue,
+                    fontSize = 27.sp,
+                    fontWeight = FontWeight.Black
+                )
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(18.dp))
 
         Text(
-            "HAI",
+            "وش تبغى تنفذ؟",
             color = Ink,
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Black
+            fontSize = 23.sp,
+            fontWeight = FontWeight.Bold
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(7.dp))
         Text(
-            "مساعدك للمحادثة والبرمجة والتنفيذ",
+            "دردشة وبرمجة وتنفيذ في نفس المساحة",
             color = Muted,
-            fontSize = 12.sp
+            fontSize = 13.sp
         )
     }
 }
-
 private data class ChatRenderSegment(
     val text: String,
     val isCode: Boolean,
@@ -1491,10 +1473,10 @@ private fun CompactComposer(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 8.dp),
-        color = Color(0xF8FFFFFF),
-        shape = RoundedCornerShape(28.dp),
+        color = Color.White,
+        shape = RoundedCornerShape(24.dp),
         border = BorderStroke(1.dp, Line),
-        shadowElevation = 16.dp
+        shadowElevation = 8.dp
     ) {
         Row(
             modifier = Modifier.padding(7.dp),
@@ -1576,7 +1558,7 @@ private fun CompactComposer(
                         Box {
                             if (value.isBlank()) {
                                 Text(
-                                    "اكتب رسالتك…",
+                                    "اكتب طلبك…",
                                     color = Muted,
                                     fontSize = 14.sp
                                 )
