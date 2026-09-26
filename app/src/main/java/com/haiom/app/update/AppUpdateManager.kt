@@ -29,10 +29,10 @@ class AppUpdateManager(
 
     suspend fun checkLatest(): AppUpdateInfo? = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("https://api.github.com/repos/Malik05255/HAI_OM/releases/latest")
+            .url("https://api.github.com/repos/Hasan0525-H/H/releases/latest")
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
-            .header("User-Agent", "H-AGENT-Android/${BuildConfig.VERSION_NAME}")
+            .header("User-Agent", "H-Android/${BuildConfig.VERSION_NAME}")
             .build()
 
         client.newCall(request).execute().use { response ->
@@ -49,7 +49,7 @@ class AppUpdateManager(
 
             val asset = root["assets"]?.jsonArray?.firstOrNull { element ->
                 val name = element.jsonObject["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
-                name.equals("H-AGENT.apk", ignoreCase = true) || name.endsWith(".apk", ignoreCase = true)
+                name.equals("H.apk", ignoreCase = true) || name.endsWith(".apk", ignoreCase = true)
             }?.jsonObject ?: error("ملف التحديث غير متاح")
 
             val url = asset["browser_download_url"]?.jsonPrimitive?.contentOrNull
