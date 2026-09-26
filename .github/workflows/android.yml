@@ -280,6 +280,17 @@ jobs:
       - name: Unit tests, lint, and APK
         run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
 
+      - name: Prepare H debug APK
+        shell: bash
+        run: cp app/build/outputs/apk/debug/app-debug.apk H-debug.apk
+
+      - name: Upload H debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: H-debug-apk
+          path: H-debug.apk
+          if-no-files-found: error
+
   publish:
     if: >-
       needs.image-worker.outputs.url != '' &&
