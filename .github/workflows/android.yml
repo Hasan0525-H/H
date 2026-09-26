@@ -1,0 +1,399 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      github_oauth_client_id:
+        description: "Optional GitHub OAuth Client ID override"
+        required: false
+        type: string
+      activate_backends:
+        description: "Deploy Cloudflare backends, verify a live AI provider, and publish the current APK"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image-worker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    outputs:
+      url: ${{ steps.image-url.outputs.url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check Cloudflare image configuration
+        id: cloudflare-config
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          H_AGENT_IMAGE_APP_KEY: ${{ secrets.H_AGENT_IMAGE_APP_KEY }}
+        run: |
+          if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" && -n "$H_AGENT_IMAGE_APP_KEY" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Cloudflare image secrets are not configured; Android build will continue without a live image endpoint."
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.activate_backends }}" == "true" ]]; then
+              missing=()
+              [[ -z "$CLOUDFLARE_API_TOKEN" ]] && missing+=("CLOUDFLARE_API_TOKEN")
+              [[ -z "$CLOUDFLARE_ACCOUNT_ID" ]] && missing+=("CLOUDFLARE_ACCOUNT_ID")
+              [[ -z "$H_AGENT_IMAGE_APP_KEY" ]] && missing+=("H_AGENT_IMAGE_APP_KEY")
+              printf 'Backend activation requires GitHub secrets: %s\n' "${missing[*]}" >&2
+              exit 1
+            fi
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.cloudflare-config.outputs.enabled == 'true'
+        with:
+          node-version: '22'
+
+      - name: Deploy H AGENT image worker
+        id: deploy-image-worker
+        if: steps.cloudflare-config.outputs.enabled == 'true'
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          H_AGENT_IMAGE_APP_KEY: ${{ secrets.H_AGENT_IMAGE_APP_KEY }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$H_AGENT_IMAGE_APP_KEY" | npx --yes wrangler@4 secret put H_AGENT_APP_KEY --config cloudflare/image-worker/wrangler.jsonc
+          DEPLOY_OUTPUT="$(npx --yes wrangler@4 deploy --config cloudflare/image-worker/wrangler.jsonc 2>&1)"
+          printf '%s\n' "$DEPLOY_OUTPUT"
+          URL="$(printf '%s\n' "$DEPLOY_OUTPUT" | grep -Eo 'https://[^[:space:]]+\.workers\.dev' | tail -1 || true)"
+          if [[ -z "$URL" ]]; then
+            echo "Cloudflare Worker deployed but workers.dev URL could not be detected." >&2
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Select image endpoint
+        id: image-url
+        if: always()
+        shell: bash
+        env:
+          DEPLOYED_URL: ${{ steps.deploy-image-worker.outputs.url }}
+          CONFIGURED_URL: ${{ vars.H_AGENT_IMAGE_PROXY_URL }}
+        run: |
+          URL="$DEPLOYED_URL"
+          if [[ -z "$URL" ]]; then
+            URL="$CONFIGURED_URL"
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+  ai-router:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      actions: write
+    outputs:
+      url: ${{ steps.ai-url.outputs.url }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check Cloudflare AI router configuration
+        id: ai-config
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          H_AGENT_APP_KEY: ${{ secrets.H_AGENT_IMAGE_APP_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          set -euo pipefail
+          provider_count=0
+          for value in "$NVIDIA_API_KEY" "$GEMINI_API_KEY" "$MISTRAL_API_KEY" "$CEREBRAS_API_KEY" "$FIREWORKS_API_KEY" "$GROQ_API_KEY"; do
+            if [[ -n "$value" ]]; then
+              provider_count=$((provider_count + 1))
+            fi
+          done
+
+          if [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" && -n "$H_AGENT_APP_KEY" && "$provider_count" -gt 0 ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "provider_count=$provider_count" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "provider_count=$provider_count" >> "$GITHUB_OUTPUT"
+            echo "AI router deploy skipped; existing configured endpoint will still be used if present."
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.activate_backends }}" == "true" ]]; then
+              missing=()
+              [[ -z "$CLOUDFLARE_API_TOKEN" ]] && missing+=("CLOUDFLARE_API_TOKEN")
+              [[ -z "$CLOUDFLARE_ACCOUNT_ID" ]] && missing+=("CLOUDFLARE_ACCOUNT_ID")
+              [[ -z "$H_AGENT_APP_KEY" ]] && missing+=("H_AGENT_IMAGE_APP_KEY")
+              if [[ "$provider_count" -eq 0 ]]; then
+                missing+=("ONE_OF:NVIDIA_API_KEY,GEMINI_API_KEY,MISTRAL_API_KEY,CEREBRAS_API_KEY,FIREWORKS_API_KEY,GROQ_API_KEY")
+              fi
+              printf 'AI backend activation requires GitHub secrets: %s\n' "${missing[*]}" >&2
+              exit 1
+            fi
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validate AI router syntax
+        shell: bash
+        run: node --input-type=module --check < cloudflare/ai-router/src/index.js
+
+      - name: Deploy secure AI router
+        id: deploy-ai-router
+        if: steps.ai-config.outputs.enabled == 'true'
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          H_AGENT_APP_KEY: ${{ secrets.H_AGENT_IMAGE_APP_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          FIREWORKS_API_KEY: ${{ secrets.FIREWORKS_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        run: |
+          set -euo pipefail
+          CONFIG="cloudflare/ai-router/wrangler.jsonc"
+
+          put_secret() {
+            local name="$1"
+            local value="$2"
+            if [[ -n "$value" ]]; then
+              printf '%s' "$value" | npx --yes wrangler@4 secret put "$name" --config "$CONFIG" >/dev/null
+            fi
+          }
+
+          put_secret H_AGENT_APP_KEY "$H_AGENT_APP_KEY"
+          put_secret NVIDIA_API_KEY "$NVIDIA_API_KEY"
+          put_secret GEMINI_API_KEY "$GEMINI_API_KEY"
+          put_secret MISTRAL_API_KEY "$MISTRAL_API_KEY"
+          put_secret CEREBRAS_API_KEY "$CEREBRAS_API_KEY"
+          put_secret FIREWORKS_API_KEY "$FIREWORKS_API_KEY"
+          put_secret GROQ_API_KEY "$GROQ_API_KEY"
+
+          DEPLOY_OUTPUT="$(npx --yes wrangler@4 deploy --config "$CONFIG" 2>&1)"
+          printf '%s\n' "$DEPLOY_OUTPUT"
+          URL="$(printf '%s\n' "$DEPLOY_OUTPUT" | grep -Eo 'https://[^[:space:]]+\.workers\.dev' | tail -1 || true)"
+          if [[ -z "$URL" ]]; then
+            echo "Cloudflare AI router deployed but workers.dev URL could not be detected." >&2
+            exit 1
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Verify live AI routing
+        if: steps.ai-config.outputs.enabled == 'true'
+        shell: bash
+        env:
+          ROUTER_URL: ${{ steps.deploy-ai-router.outputs.url }}
+          H_AGENT_APP_KEY: ${{ secrets.H_AGENT_IMAGE_APP_KEY }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if RESPONSE="$(curl -fsS --max-time 45 \
+              -X POST "$ROUTER_URL/probe" \
+              -H "X-H-Agent-Key: $H_AGENT_APP_KEY" \
+              -H "Content-Type: application/json" \
+              -d '{}' 2>/dev/null)"; then
+              echo "$RESPONSE"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "AI router deployed, but no configured provider passed the readiness probe." >&2
+          exit 1
+
+      - name: Select AI router endpoint
+        id: ai-url
+        if: always()
+        shell: bash
+        env:
+          DEPLOYED_URL: ${{ steps.deploy-ai-router.outputs.url }}
+          CONFIGURED_URL: ${{ vars.H_AGENT_AI_PROXY_URL }}
+        run: |
+          URL="$DEPLOYED_URL"
+          if [[ -z "$URL" ]]; then
+            URL="$CONFIGURED_URL"
+          fi
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Persist AI router endpoint
+        if: steps.ai-url.outputs.url != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROUTER_URL: ${{ steps.ai-url.outputs.url }}
+        run: |
+          gh variable set H_AGENT_AI_PROXY_URL \
+            --repo "$GITHUB_REPOSITORY" \
+            --body "$ROUTER_URL"
+
+  build:
+    needs: [image-worker, ai-router]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      GITHUB_OAUTH_CLIENT_ID: ${{ inputs.github_oauth_client_id || vars.GITHUB_OAUTH_CLIENT_ID }}
+      CLOUDFLARE_IMAGE_PROXY_URL: ${{ needs.image-worker.outputs.url }}
+      CLOUDFLARE_AI_PROXY_URL: ${{ needs.ai-router.outputs.url }}
+      H_AGENT_IMAGE_APP_KEY: ${{ secrets.H_AGENT_IMAGE_APP_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prevent provider API keys from entering Android
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE \
+            'NVIDIA_API_KEY|GEMINI_API_KEY|MISTRAL_API_KEY|CEREBRAS_API_KEY|FIREWORKS_API_KEY|GROQ_API_KEY' \
+            app/; then
+            echo "Provider API credentials must remain server-side and may not be referenced by Android source or build configuration." >&2
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Unit tests, lint, and APK
+        run: gradle --no-daemon testDebugUnitTest lintDebug assembleDebug
+
+  publish:
+    if: >-
+      needs.image-worker.outputs.url != '' &&
+      (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        (github.event_name == 'workflow_dispatch' && inputs.activate_backends == true)
+      )
+    needs: [image-worker, ai-router, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_OAUTH_CLIENT_ID: ${{ inputs.github_oauth_client_id || vars.GITHUB_OAUTH_CLIENT_ID }}
+      CLOUDFLARE_IMAGE_PROXY_URL: ${{ needs.image-worker.outputs.url }}
+      CLOUDFLARE_AI_PROXY_URL: ${{ needs.ai-router.outputs.url }}
+      H_AGENT_IMAGE_APP_KEY: ${{ secrets.H_AGENT_IMAGE_APP_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      # Legacy tag/file names are retained so existing installs keep the same signing key.
+      - name: Get or create stable signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view hai-om-signing >/dev/null 2>&1; then
+            gh release download hai-om-signing -p 'hai-om-release.jks' -p 'signing.properties' --clobber
+          else
+            PASS="$(openssl rand -hex 24)"
+            keytool -genkeypair -v \
+              -keystore hai-om-release.jks \
+              -storepass "$PASS" \
+              -keypass "$PASS" \
+              -alias haiom \
+              -keyalg RSA \
+              -keysize 3072 \
+              -validity 10000 \
+              -dname "CN=H AGENT,O=H AGENT,C=SA"
+            {
+              echo "storePassword=$PASS"
+              echo "keyPassword=$PASS"
+              echo "keyAlias=haiom"
+            } > signing.properties
+            gh release create hai-om-signing \
+              --draft \
+              --title "H AGENT signing material" \
+              --notes "Private CI signing material. Legacy tag retained for update compatibility." \
+              hai-om-release.jks signing.properties
+          fi
+
+      - name: Build signed release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          source signing.properties
+          export ANDROID_KEYSTORE_PATH="$PWD/hai-om-release.jks"
+          export ANDROID_KEYSTORE_PASSWORD="$storePassword"
+          export ANDROID_KEY_ALIAS="$keyAlias"
+          export ANDROID_KEY_PASSWORD="$keyPassword"
+          gradle --no-daemon assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk H-AGENT.apk
+
+      - name: Upload signed APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: H-AGENT-signed-release-apk
+          path: H-AGENT.apk
+          if-no-files-found: error
+
+      - name: Publish app release
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(grep 'versionName = "' app/build.gradle.kts | head -1 | sed -E 's/.*versionName = "([^"]+)".*/\1/')"
+          TAG="v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" H-AGENT.apk --clobber
+            gh release edit "$TAG" --title "H AGENT $TAG" --latest
+          else
+            gh release create "$TAG" H-AGENT.apk \
+              --title "H AGENT $TAG" \
+              --notes "H AGENT release $TAG" \
+              --latest
+          fi
+
+
+  cleanup-legacy-branches:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'H AGENT 0.11.0')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Delete all legacy branches except main
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t branches < <(
+            gh api --paginate "repos/$GITHUB_REPOSITORY/branches?per_page=100" --jq '.[].name'
+          )
+          for branch in "${branches[@]}"; do
+            if [[ "$branch" == "main" ]]; then
+              continue
+            fi
+            echo "Deleting branch: $branch"
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$branch" || true
+          done
